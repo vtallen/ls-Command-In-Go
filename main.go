@@ -9,6 +9,7 @@ import (
 	"strings"
 )
 
+// Terminal color codes
 const (
 	RESET  = "\033[0m"
 	BOLD   = "\033[1m"
@@ -21,6 +22,8 @@ const (
 	GREY   = "\033[37m"
 )
 
+// Holds the command line arguments, used by printing functions
+// to determine how to print output
 type Flags struct {
 	LongListing   *bool
 	HumanReadable *bool
@@ -36,8 +39,8 @@ type Flags struct {
 
 func main() {
 	ArgsFlags := ParseArgs()
-	// DebugArgs(ArgsFlags)
-	// fmt.Println()
+	DebugArgs(ArgsFlags)
+	fmt.Println()
 
 	filesInfo := GetFilesInfo(ArgsFlags.Path)
 	if *ArgsFlags.LongListing {
@@ -47,6 +50,16 @@ func main() {
 	}
 }
 
+/*********************************************************************************************
+*                                                                                            *
+* Name: PrintUsage                                                                           *
+*                                                                                            *
+* Description: Prints the command examples as wells as flags.PrintDefaults() for flags usage *
+*                                                                                            *
+* Parameters: none                                                                           *
+*                                                                                            *
+* return: none                                                                               *
+**********************************************************************************************/
 func PrintUsage() {
 	const USAGE string = "A copy of the ls command written in go\n Examples:\n\tvls <path>\n\tvls -lah <path>\n\tvls -l -a -h <path>\n\tvls -lah\n\tvls -l -a -h"
 	fmt.Println(USAGE)
@@ -97,6 +110,7 @@ func ParseArgs() *Flags {
 		}
 
 	} else if argc == 2 { // Catches the case when command is in form vls -lah <path>
+		// TODO: Need to catch the case where the flag is a single flag
 		ParseMultiFlags()
 		ArgsFlags.Path = argv[argc-1]
 	} else { // Catches the case in which more than 1 flag is given seperately
@@ -231,11 +245,33 @@ func SortSize(ArgsFlags *Flags, filesInfo []fs.FileInfo) {
 	})
 }
 
+func SortTime(ArgsFlags *Flags, filesInfo []fs.FileInfo) {
+	sort.Slice(filesInfo, func(idxa, idxb int) bool {
+
+		var comp int = filesInfo[idxa].ModTime().Compare(filesInfo[idxb].ModTime())
+		if *ArgsFlags.Reverse {
+			if comp == -1 || comp == 0 {
+				return true
+			} else {
+				return false
+			}
+		} else {
+			if comp == -1 || comp == 0 {
+				return false
+			} else {
+				return true
+			}
+		}
+	})
+}
+
 func PrintNormalListing(ArgsFlags *Flags, filesInfo []fs.FileInfo) {
 	if *ArgsFlags.Reverse && !*ArgsFlags.SortSize && !*ArgsFlags.SortTime {
 		SortName(ArgsFlags, filesInfo)
 	} else if *ArgsFlags.SortSize && !*ArgsFlags.SortTime {
 		SortSize(ArgsFlags, filesInfo)
+	} else if !*ArgsFlags.SortSize && *ArgsFlags.SortTime {
+		SortTime(ArgsFlags, filesInfo)
 	} else {
 		SortName(ArgsFlags, filesInfo)
 	}
