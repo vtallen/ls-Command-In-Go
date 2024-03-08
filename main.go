@@ -6,11 +6,20 @@ import (
 	"os"
 )
 
+const (
+	RESET  = "\033[0m"
+	BOLD   = "\033[1m"
+	RED    = "\033[31m"
+	GREEN  = "\033[32m"
+	YELLOW = "\033[33m"
+	BLUE   = "\033[34m"
+	PURPLE = "\033[35m"
+	CYAN   = "\033[36m"
+	GREY   = "\033[37m"
+)
+
 func main() {
-	fmt.Println("Hello world!")
 	args := os.Args
-	fmt.Println(args)
-	fmt.Println(len(args))
 
 	var hasFlags bool
 	var flags string
@@ -40,6 +49,19 @@ func main() {
 		}
 	}
 
+	filesInfo := getFilesInfo(path)
+	for _, info := range filesInfo {
+		fmt.Printf("%s ", getColorFilename(info))
+	}
+
+	fmt.Println()
+}
+
+func filterHidden(filesInfo []fs.FileInfo) []fs.FileInfo {
+	return filesInfo
+}
+
+func getFilesInfo(path string) []os.FileInfo {
 	files, err := os.ReadDir(path)
 	if err != nil {
 		fmt.Printf("Error reading directory: %s\n", err)
@@ -56,6 +78,20 @@ func main() {
 		// fmt.Printf("type %T", info)
 		filesInfo = append(filesInfo, info)
 	}
+	return filesInfo
+}
 
-	fmt.Println()
+func getColorFilename(fileinfo fs.FileInfo) string {
+	var color string
+	if fileinfo.IsDir() {
+		color = BOLD + BLUE
+	} else {
+		if fileinfo.Mode()&os.ModePerm&0100 != 0 { // Tests if the file is an executable
+			color = BOLD + GREEN
+		} else {
+			color = ""
+		}
+	}
+
+	return color + fileinfo.Name() + RESET
 }
