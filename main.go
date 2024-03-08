@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"sort"
 	"strings"
 )
 
@@ -34,61 +35,38 @@ type Flags struct {
 }
 
 func main() {
-	FlagsBool := ParseArgs()
-	DebugArgs(FlagsBool)
-
-	// args := os.Args
-
-	// var hasFlags bool
-	// var flags string
-	// flags = "nil"
-	// if len(args) > 1 {
-	// 	flags = args[1]
-	// 	if flags[0] == '-' {
-	// 		hasFlags = true
-	// 		flags = flags[1:]
-	// 	}
-	// }
-
-	// var path string
-	// var err error
-	// if len(args) < 3 {
-	// 	path, err = os.Getwd()
-	// 	if err != nil {
-	// 		fmt.Println("Erorr getting current directory")
-	// 		os.Exit(1)
-	// 	}
-	// } else {
-	// 	if hasFlags {
-	// 		// handle flag parsing
-	// 		path = args[2]
-	// 	} else {
-	// 		path = args[1]
-	// 	}
-	// }
-
-	// filesInfo := filterHidden(getFilesInfo(path))
-	// for _, info := range filesInfo {
-	// 	fmt.Printf("%s ", getColorFilename(info))
-	// }
-
+	ArgsFlags := ParseArgs()
+	// DebugArgs(ArgsFlags)
 	// fmt.Println()
+
+	filesInfo := GetFilesInfo(ArgsFlags.Path)
+	if *ArgsFlags.LongListing {
+		PrintLongListing(ArgsFlags, filesInfo)
+	} else {
+		PrintNormalListing(ArgsFlags, filesInfo)
+	}
+}
+
+func PrintUsage() {
+	const USAGE string = "A copy of the ls command written in go\n Examples:\n\tvls <path>\n\tvls -lah <path>\n\tvls -l -a -h <path>\n\tvls -lah\n\tvls -l -a -h"
+	fmt.Println(USAGE)
+	flag.PrintDefaults()
 }
 
 func ParseArgs() *Flags {
-	var FlagsBool Flags
+	var ArgsFlags Flags
 	// Define flags
-	FlagsBool.LongListing = flag.Bool("l", false, "Use long listing format")
-	FlagsBool.HumanReadable = flag.Bool("h", false, "Print sizes in human readable format")
-	FlagsBool.Recursive = flag.Bool("R", false, "List subdirectories recursively")
-	FlagsBool.SortTime = flag.Bool("t", false, "Sort by modification time")
-	FlagsBool.SortSize = flag.Bool("S", false, "Sort by file size")
-	FlagsBool.Reverse = flag.Bool("r", false, "Reverse the order of sort")
-	FlagsBool.NoColors = flag.Bool("G", false, "Disable colorized output")
+	ArgsFlags.LongListing = flag.Bool("l", false, "Use long listing format")
+	ArgsFlags.HumanReadable = flag.Bool("h", false, "Print sizes in human readable format")
+	ArgsFlags.Recursive = flag.Bool("R", false, "List subdirectories recursively")
+	ArgsFlags.SortTime = flag.Bool("t", false, "Sort by modification time")
+	ArgsFlags.SortSize = flag.Bool("S", false, "Sort by file size")
+	ArgsFlags.Reverse = flag.Bool("r", false, "Reverse the order of sort")
+	ArgsFlags.NoColors = flag.Bool("G", false, "Disable colorized output")
 
 	// Define flags related to filtering
-	FlagsBool.ShowHidden = flag.Bool("a", false, "Show hidden files")
-	FlagsBool.ShowINodes = flag.Bool("i", false, "Print the index number of each file")
+	ArgsFlags.ShowHidden = flag.Bool("a", false, "Show hidden files")
+	ArgsFlags.ShowINodes = flag.Bool("i", false, "Print the index number of each file")
 
 	argv := os.Args[1:]
 	argc := len(os.Args[1:])
@@ -97,7 +75,7 @@ func ParseArgs() *Flags {
 
 	// Case when vls
 	if argc == 0 {
-		FlagsBool.Path, err = os.Getwd()
+		ArgsFlags.Path, err = os.Getwd()
 
 	} else if argc == 1 {
 		/*
@@ -110,56 +88,58 @@ func ParseArgs() *Flags {
 		// Catches multiple argument case
 		if argv[0][0] == '-' && len(argv[0]) > 2 {
 			ParseMultiFlags()
-			FlagsBool.Path, err = os.Getwd()
+			ArgsFlags.Path, err = os.Getwd()
 		} else if argv[0][0] == '-' { // Catches the single flag case
 			flag.Parse()
-			FlagsBool.Path, err = os.Getwd()
+			ArgsFlags.Path, err = os.Getwd()
 		} else { // Catches the case when just a path is given
-			FlagsBool.Path = argv[0]
+			ArgsFlags.Path = argv[0]
 		}
 
 	} else if argc == 2 { // Catches the case when command is in form vls -lah <path>
 		ParseMultiFlags()
-		FlagsBool.Path = argv[argc-1]
+		ArgsFlags.Path = argv[argc-1]
 	} else { // Catches the case in which more than 1 flag is given seperately
 		flag.Parse()
 		leftover := flag.Args()
 
 		if len(leftover) > 1 {
-			flag.CommandLine.Usage()
+			PrintUsage()
+			os.Exit(1)
 		}
 
-		FlagsBool.Path = leftover[0]
+		ArgsFlags.Path = leftover[0]
 	}
 
 	if err != nil {
 		fmt.Printf("Error parsing args:%s\n", err)
+		PrintUsage()
 		os.Exit(1)
 	}
 
-	return &FlagsBool
+	return &ArgsFlags
 
 }
 
-func DebugArgs(FlagsBool *Flags) {
-	fmt.Println("Path:", FlagsBool.Path)
+func DebugArgs(ArgsFlags *Flags) {
+	fmt.Println("Path:", ArgsFlags.Path)
 	fmt.Println()
 	// Parse command-line arguments
 	// flag.Parse()
 
 	// Access the values of the flags
 	fmt.Println("Formatting flags:")
-	fmt.Println("-l:", *FlagsBool.LongListing)
-	fmt.Println("-h:", *FlagsBool.HumanReadable)
-	fmt.Println("-R:", *FlagsBool.Recursive)
-	fmt.Println("-t:", *FlagsBool.SortTime)
-	fmt.Println("-S:", *FlagsBool.SortSize)
-	fmt.Println("-r:", *FlagsBool.Reverse)
-	fmt.Println("-G:", *FlagsBool.NoColors)
+	fmt.Println("-l:", *ArgsFlags.LongListing)
+	fmt.Println("-h:", *ArgsFlags.HumanReadable)
+	fmt.Println("-R:", *ArgsFlags.Recursive)
+	fmt.Println("-t:", *ArgsFlags.SortTime)
+	fmt.Println("-S:", *ArgsFlags.SortSize)
+	fmt.Println("-r:", *ArgsFlags.Reverse)
+	fmt.Println("-G:", *ArgsFlags.NoColors)
 
 	fmt.Println("\nFiltering flags:")
-	fmt.Println("-a:", *FlagsBool.ShowHidden)
-	fmt.Println("-i:", *FlagsBool.ShowINodes)
+	fmt.Println("-a:", *ArgsFlags.ShowHidden)
+	fmt.Println("-i:", *ArgsFlags.ShowINodes)
 
 	// Access non-flag arguments (if any)
 	fmt.Println("\nNon-flag arguments:")
@@ -172,12 +152,12 @@ func ParseMultiFlags() {
 		arg := os.Args[i]
 		if strings.HasPrefix(arg, "-") {
 			for _, flagChar := range arg[1:] {
-				flag := flag.Lookup(string(flagChar))
-				if flag == nil {
-					fmt.Printf("Unknown flag: -%c\n", flagChar)
+				curFlag := flag.Lookup(string(flagChar))
+				if curFlag == nil {
+					PrintUsage()
 					os.Exit(1)
 				}
-				flag.Value.Set("true")
+				curFlag.Value.Set("true")
 			}
 		} else {
 			break
@@ -185,7 +165,7 @@ func ParseMultiFlags() {
 	}
 }
 
-func getFilesInfo(path string) []os.FileInfo {
+func GetFilesInfo(path string) []os.FileInfo {
 	files, err := os.ReadDir(path)
 	if err != nil {
 		fmt.Printf("Error reading directory: %s\n", err)
@@ -205,17 +185,6 @@ func getFilesInfo(path string) []os.FileInfo {
 	return filesInfo
 }
 
-func filterHidden(filesInfo []fs.FileInfo) []fs.FileInfo {
-	noHidden := make([]fs.FileInfo, 0, 0)
-	for _, file := range filesInfo {
-		if file.Name()[0] != '.' {
-			noHidden = append(noHidden, file)
-		}
-	}
-
-	return noHidden
-}
-
 func GetColorFilename(fileinfo fs.FileInfo) string {
 	var color string
 	if fileinfo.IsDir() {
@@ -229,4 +198,61 @@ func GetColorFilename(fileinfo fs.FileInfo) string {
 	}
 
 	return color + fileinfo.Name() + RESET
+}
+
+func filterHidden(filesInfo []fs.FileInfo) []fs.FileInfo {
+	noHidden := make([]fs.FileInfo, 0, 0)
+	for _, file := range filesInfo {
+		if file.Name()[0] != '.' {
+			noHidden = append(noHidden, file)
+		}
+	}
+
+	return noHidden
+}
+
+func SortName(ArgsFlags *Flags, filesInfo []fs.FileInfo) {
+	sort.Slice(filesInfo, func(idxa, idxb int) bool {
+		if *ArgsFlags.Reverse {
+			return filesInfo[idxa].Name() > filesInfo[idxb].Name()
+		} else {
+			return filesInfo[idxa].Name() < filesInfo[idxb].Name()
+		}
+	})
+}
+
+func SortSize(ArgsFlags *Flags, filesInfo []fs.FileInfo) {
+	sort.Slice(filesInfo, func(idxa, idxb int) bool {
+		if *ArgsFlags.Reverse {
+			return filesInfo[idxa].Size() < filesInfo[idxb].Size()
+		} else {
+			return filesInfo[idxa].Size() > filesInfo[idxb].Size()
+		}
+	})
+}
+
+func PrintNormalListing(ArgsFlags *Flags, filesInfo []fs.FileInfo) {
+	if *ArgsFlags.Reverse && !*ArgsFlags.SortSize && !*ArgsFlags.SortTime {
+		SortName(ArgsFlags, filesInfo)
+	} else if *ArgsFlags.SortSize && !*ArgsFlags.SortTime {
+		SortSize(ArgsFlags, filesInfo)
+	} else {
+		SortName(ArgsFlags, filesInfo)
+	}
+
+	for _, info := range filesInfo {
+		var finalOut string
+		if *ArgsFlags.NoColors {
+			finalOut = finalOut + info.Name()
+		} else {
+			finalOut = finalOut + GetColorFilename(info)
+		}
+
+		fmt.Printf(finalOut + " ")
+	}
+	fmt.Println()
+}
+
+func PrintLongListing(ArgsFlags *Flags, filesInfo []fs.FileInfo) {
+
 }
