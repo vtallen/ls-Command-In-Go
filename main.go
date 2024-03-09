@@ -435,6 +435,7 @@ func PrintLongListing(ArgsFlags *Flags, filesInfo []fs.FileInfo) {
 		outTable[idx] = make([]string, 0)
 	}
 
+	var totalSize int64
 	for idx, info := range filesInfo {
 
 		stat, syscallOk := info.Sys().(*syscall.Stat_t)
@@ -485,6 +486,7 @@ func PrintLongListing(ArgsFlags *Flags, filesInfo []fs.FileInfo) {
 		} else {
 			size = GetReadableSize(info.Size())
 		}
+		totalSize = totalSize + int64(info.Size())
 		outTable[idx] = append(outTable[idx], size)
 
 		// Date/time modified
@@ -500,6 +502,10 @@ func PrintLongListing(ArgsFlags *Flags, filesInfo []fs.FileInfo) {
 		}
 		outTable[idx] = append(outTable[idx], filename)
 	}
-
+	if *ArgsFlags.HumanReadable {
+		fmt.Printf("total %s\n", GetReadableSize(totalSize))
+	} else {
+		fmt.Printf("total %v\n", totalSize)
+	}
 	PrintTable(outTable)
 }
