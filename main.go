@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"os/user"
 	"sort"
 	"strings"
 	"syscall"
@@ -280,8 +281,66 @@ func GetINode(fileInfo *fs.FileInfo) (uint64, error) {
 	return stat.Ino, nil
 }
 
-func PrintNormalListing(ArgsFlags *Flags, filesInfo []fs.FileInfo) {
+func GetFilePerms(fileInfo *fs.FileInfo) string {
+	mode := (*fileInfo).Mode()
 
+	permissions := "-"
+
+	// Owner permissions
+	if mode&0400 != 0 {
+		permissions += "r"
+	} else {
+		permissions += "-"
+	}
+	if mode&0200 != 0 {
+		permissions += "w"
+	} else {
+		permissions += "-"
+	}
+	if mode&0100 != 0 {
+		permissions += "x"
+	} else {
+		permissions += "-"
+	}
+
+	// Group permissions
+	if mode&0040 != 0 {
+		permissions += "r"
+	} else {
+		permissions += "-"
+	}
+	if mode&0020 != 0 {
+		permissions += "w"
+	} else {
+		permissions += "-"
+	}
+	if mode&0010 != 0 {
+		permissions += "x"
+	} else {
+		permissions += "-"
+	}
+
+	// Other permissions
+	if mode&0004 != 0 {
+		permissions += "r"
+	} else {
+		permissions += "-"
+	}
+	if mode&0002 != 0 {
+		permissions += "w"
+	} else {
+		permissions += "-"
+	}
+	if mode&0001 != 0 {
+		permissions += "x"
+	} else {
+		permissions += "-"
+	}
+
+	return permissions
+}
+
+func SortFilterOnFlags(ArgsFlags *Flags, filesInfo []fs.FileInfo) {
 	// Determine how to sort the entries based on the arguments
 	if *ArgsFlags.Reverse && !*ArgsFlags.SortSize && !*ArgsFlags.SortTime {
 		SortName(ArgsFlags, filesInfo)
@@ -297,6 +356,11 @@ func PrintNormalListing(ArgsFlags *Flags, filesInfo []fs.FileInfo) {
 	if !*ArgsFlags.ShowHidden {
 		filesInfo = FilterHidden(filesInfo)
 	}
+}
+
+func PrintNormalListing(ArgsFlags *Flags, filesInfo []fs.FileInfo) {
+	// Uses the argument flags to sort and filter the output
+	SortFilterOnFlags(ArgsFlags, filesInfo)
 
 	for _, info := range filesInfo {
 		var finalOut string
@@ -323,6 +387,105 @@ func PrintNormalListing(ArgsFlags *Flags, filesInfo []fs.FileInfo) {
 	}
 }
 
-func PrintLongListing(ArgsFlags *Flags, filesInfo []fs.FileInfo) {
+func PrintTable(table [][]string) {
+	cols := len(table[0])
+	colSizes := make([]int, cols)
 
+	// Calculate the column sizes
+	for _, row := range table {
+		for coli, col := range row {
+			length := len(col)
+			if length > colSizes[coli] {
+				colSizes[coli] = length
+			}
+		}
+	}
+
+	// Print out the table
+	for _, row := range table {
+		var outRow string
+
+		for coli, col := range row {
+			outRow = outRow + fmt.Sprintf("%-*s ", colSizes[coli], col)
+		}
+
+		outRow = strings.TrimSpace(outRow)
+		fmt.Print(outRow + "\n")
+	}
+}
+
+func PrintLongListing(ArgsFlags *Flags, filesInfo []fs.FileInfo) {
+	SortFilterOnFlags(ArgsFlags, filesInfo)
+
+	// Allocate the memory that will store the info for each file
+	outTable := make([][]string, len(filesInfo))
+	for idx := 0; idx < len(filesInfo); idx++ {
+		outTable[idx] = make([]string, 0)
+	}
+
+	for idx, info := range filesInfo {
+
+		stat, syscallOk := info.Sys().(*syscall.Stat_t)
+		if !syscallOk {
+			fmt.Printf("syscall Stat_t failed: %v\n", syscallOk)
+		}
+
+		// File inode
+		var inode string
+		if *ArgsFlags.ShowINodes {
+			inodeInt, ok := GetINode(&info)
+			if ok != nil {
+				fmt.Printf("%s", ok)
+			}
+			inode = fmt.Sprint(inodeInt)
+		}
+		outTable[idx] = append(outTable[idx], inode)
+
+		// File permissions
+		var permissions string = GetFilePerms(&info)
+		outTable[idx] = append(outTable[idx], permissions)
+
+		// Number of hard links
+		var numLinks string = fmt.Sprint(stat.Nlink)
+		outTable[idx] = append(outTable[idx], numLinks)
+
+		// Get the owner of the file
+		ownerUsr, ok := user.LookupId(fmt.Sprint(stat.Uid))
+		if ok != nil {
+			fmt.Printf("%s\n", ok)
+		}
+		var owner string = ownerUsr.Username
+		outTable[idx] = append(outTable[idx], owner)
+
+		// Group of the file
+		var group string
+		groupUsr, ok := user.LookupGroupId(fmt.Sprint(stat.Gid))
+		if ok != nil {
+			fmt.Printf("%s\n", ok)
+		}
+		group = groupUsr.Name
+		outTable[idx] = append(outTable[idx], group)
+
+		// Size of the file
+		var size string
+		if !*ArgsFlags.HumanReadable {
+			size = fmt.Sprint(info.Size())
+		}
+		outTable[idx] = append(outTable[idx], size)
+
+		// Date/time modified
+		var dateTime string = info.ModTime().Format("Jan 02 15:04")
+		outTable[idx] = append(outTable[idx], dateTime)
+
+		// Get the filename
+		var filename string
+		if *ArgsFlags.NoColors {
+			filename = info.Name()
+		} else {
+			filename = GetColorFilename(info)
+		}
+		outTable[idx] = append(outTable[idx], filename)
+	}
+
+	PrintTable(outTable)
 }
