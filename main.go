@@ -39,8 +39,8 @@ type Flags struct {
 
 func main() {
 	ArgsFlags := ParseArgs()
-	DebugArgs(ArgsFlags)
-	fmt.Println()
+	// DebugArgs(ArgsFlags)
+	// fmt.Println()
 
 	filesInfo := GetFilesInfo(ArgsFlags.Path)
 	if *ArgsFlags.LongListing {
@@ -214,7 +214,7 @@ func GetColorFilename(fileinfo fs.FileInfo) string {
 	return color + fileinfo.Name() + RESET
 }
 
-func filterHidden(filesInfo []fs.FileInfo) []fs.FileInfo {
+func FilterHidden(filesInfo []fs.FileInfo) []fs.FileInfo {
 	noHidden := make([]fs.FileInfo, 0, 0)
 	for _, file := range filesInfo {
 		if file.Name()[0] != '.' {
@@ -266,6 +266,8 @@ func SortTime(ArgsFlags *Flags, filesInfo []fs.FileInfo) {
 }
 
 func PrintNormalListing(ArgsFlags *Flags, filesInfo []fs.FileInfo) {
+
+	// Determine how to sort the entries based on the arguments
 	if *ArgsFlags.Reverse && !*ArgsFlags.SortSize && !*ArgsFlags.SortTime {
 		SortName(ArgsFlags, filesInfo)
 	} else if *ArgsFlags.SortSize && !*ArgsFlags.SortTime {
@@ -274,6 +276,11 @@ func PrintNormalListing(ArgsFlags *Flags, filesInfo []fs.FileInfo) {
 		SortTime(ArgsFlags, filesInfo)
 	} else {
 		SortName(ArgsFlags, filesInfo)
+	}
+
+	// If -a is not present in args, take out all hidden files from output
+	if !*ArgsFlags.ShowHidden {
+		filesInfo = FilterHidden(filesInfo)
 	}
 
 	for _, info := range filesInfo {
@@ -286,7 +293,9 @@ func PrintNormalListing(ArgsFlags *Flags, filesInfo []fs.FileInfo) {
 
 		fmt.Printf(finalOut + " ")
 	}
-	fmt.Println()
+	if len(filesInfo) > 0 {
+		fmt.Println()
+	}
 }
 
 func PrintLongListing(ArgsFlags *Flags, filesInfo []fs.FileInfo) {
