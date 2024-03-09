@@ -7,6 +7,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"syscall"
 )
 
 // Terminal color codes
@@ -265,6 +266,20 @@ func SortTime(ArgsFlags *Flags, filesInfo []fs.FileInfo) {
 	})
 }
 
+func GetINode(fileInfo *fs.FileInfo) (uint64, error) {
+	if fileInfo == nil {
+		panic("Cannot pass nil into GetINode")
+	}
+
+	stat, ok := (*fileInfo).Sys().(*syscall.Stat_t)
+
+	if !ok {
+		return 0, fmt.Errorf("unable to get inode for file %s\n", (*fileInfo).Name())
+	}
+
+	return stat.Ino, nil
+}
+
 func PrintNormalListing(ArgsFlags *Flags, filesInfo []fs.FileInfo) {
 
 	// Determine how to sort the entries based on the arguments
@@ -285,6 +300,16 @@ func PrintNormalListing(ArgsFlags *Flags, filesInfo []fs.FileInfo) {
 
 	for _, info := range filesInfo {
 		var finalOut string
+
+		if *ArgsFlags.ShowINodes {
+			inode, ok := GetINode(&info)
+			if ok != nil {
+				fmt.Printf("%s", ok)
+			}
+
+			finalOut = finalOut + fmt.Sprint(inode) + " "
+		}
+
 		if *ArgsFlags.NoColors {
 			finalOut = finalOut + info.Name()
 		} else {
