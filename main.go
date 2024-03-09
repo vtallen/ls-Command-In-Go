@@ -340,6 +340,18 @@ func GetFilePerms(fileInfo *fs.FileInfo) string {
 	return permissions
 }
 
+func GetReadableSize(size int64) string {
+	if size < 1024 { // Size is measureable in bytes
+		return fmt.Sprint(size)
+	} else if size >= 1024 && size < 1048576 { // Size is measureable in kilobytes
+		return fmt.Sprintf("%.1f", float64(size)/1024.0) + fmt.Sprint("K")
+	} else if size >= 1048576 && size < 1073741824 { // Size is measureable in megabytes
+		return fmt.Sprintf("%.1f", float64(size)/1048576.0) + fmt.Sprint("M")
+	} else { // Size is measureable in terabytes
+		return fmt.Sprintf("%.1f", float64(size)/1073741824.0) + fmt.Sprint("T")
+	}
+}
+
 func SortFilterOnFlags(ArgsFlags *Flags, filesInfo []fs.FileInfo) {
 	// Determine how to sort the entries based on the arguments
 	if *ArgsFlags.Reverse && !*ArgsFlags.SortSize && !*ArgsFlags.SortTime {
@@ -470,6 +482,8 @@ func PrintLongListing(ArgsFlags *Flags, filesInfo []fs.FileInfo) {
 		var size string
 		if !*ArgsFlags.HumanReadable {
 			size = fmt.Sprint(info.Size())
+		} else {
+			size = GetReadableSize(info.Size())
 		}
 		outTable[idx] = append(outTable[idx], size)
 
