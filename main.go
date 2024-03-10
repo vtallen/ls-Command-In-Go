@@ -46,9 +46,9 @@ func main() {
 
 	filesInfo := GetFilesInfo(ArgsFlags.Path)
 	if *ArgsFlags.LongListing {
-		PrintLongListing(ArgsFlags, filesInfo)
+		PrintLongListing(ArgsFlags, filesInfo, ArgsFlags.Path, false)
 	} else {
-		PrintNormalListing(ArgsFlags, filesInfo)
+		PrintNormalListing(ArgsFlags, filesInfo, ArgsFlags.Path, false)
 	}
 }
 
@@ -352,27 +352,35 @@ func GetReadableSize(size int64) string {
 	}
 }
 
-func SortFilterOnFlags(ArgsFlags *Flags, filesInfo []fs.FileInfo) {
+func SortFilterOnFlags(ArgsFlags *Flags, filesInfo *[]fs.FileInfo) []fs.FileInfo {
 	// Determine how to sort the entries based on the arguments
 	if *ArgsFlags.Reverse && !*ArgsFlags.SortSize && !*ArgsFlags.SortTime {
-		SortName(ArgsFlags, filesInfo)
+		SortName(ArgsFlags, *filesInfo)
 	} else if *ArgsFlags.SortSize && !*ArgsFlags.SortTime {
-		SortSize(ArgsFlags, filesInfo)
+		SortSize(ArgsFlags, *filesInfo)
 	} else if !*ArgsFlags.SortSize && *ArgsFlags.SortTime {
-		SortTime(ArgsFlags, filesInfo)
+		SortTime(ArgsFlags, *filesInfo)
 	} else {
-		SortName(ArgsFlags, filesInfo)
+		SortName(ArgsFlags, *filesInfo)
 	}
 
 	// If -a is not present in args, take out all hidden files from output
 	if !*ArgsFlags.ShowHidden {
-		filesInfo = FilterHidden(filesInfo)
+		noHidden := FilterHidden(*filesInfo)
+		filesInfo = &noHidden
 	}
+
+	return *filesInfo
 }
 
-func PrintNormalListing(ArgsFlags *Flags, filesInfo []fs.FileInfo) {
+func PrintNormalListing(ArgsFlags *Flags, filesInfo []fs.FileInfo, callingDir string, isRecursiveCall bool) {
 	// Uses the argument flags to sort and filter the output
-	SortFilterOnFlags(ArgsFlags, filesInfo)
+	filesInfo = SortFilterOnFlags(ArgsFlags, &filesInfo)
+
+	dirs := make([]fs.FileInfo, 0, 0)
+	if isRecursiveCall {
+		fmt.Printf("%s:\n", callingDir)
+	}
 
 	for _, info := range filesInfo {
 		var finalOut string
@@ -392,11 +400,26 @@ func PrintNormalListing(ArgsFlags *Flags, filesInfo []fs.FileInfo) {
 			finalOut = finalOut + GetColorFilename(info)
 		}
 
-		fmt.Printf(finalOut + " ")
+		if info.IsDir() {
+			dirs = append(dirs, info)
+		}
+
+		fmt.Printf("%s ", finalOut)
 	}
+
 	if len(filesInfo) > 0 {
 		fmt.Println()
 	}
+
+	if *ArgsFlags.Recursive && len(dirs) > 0 {
+		for _, dir := range dirs {
+			fmt.Println()
+			newDir := callingDir + "/" + dir.Name()
+			recursiveFiles := GetFilesInfo(newDir)
+			PrintNormalListing(ArgsFlags, recursiveFiles, newDir, true)
+		}
+	}
+
 }
 
 func PrintTable(table [][]string) {
@@ -426,13 +449,18 @@ func PrintTable(table [][]string) {
 	}
 }
 
-func PrintLongListing(ArgsFlags *Flags, filesInfo []fs.FileInfo) {
-	SortFilterOnFlags(ArgsFlags, filesInfo)
+func PrintLongListing(ArgsFlags *Flags, filesInfo []fs.FileInfo, callingDir string, isRecursiveCall bool) {
+	filesInfo = SortFilterOnFlags(ArgsFlags, &filesInfo)
 
 	// Allocate the memory that will store the info for each file
 	outTable := make([][]string, len(filesInfo))
 	for idx := 0; idx < len(filesInfo); idx++ {
 		outTable[idx] = make([]string, 0)
+	}
+
+	dirs := make([]fs.FileInfo, 0, 0)
+	if isRecursiveCall {
+		fmt.Printf("%s:\n", callingDir)
 	}
 
 	var totalSize int64
@@ -501,6 +529,10 @@ func PrintLongListing(ArgsFlags *Flags, filesInfo []fs.FileInfo) {
 			filename = GetColorFilename(info)
 		}
 		outTable[idx] = append(outTable[idx], filename)
+
+		if info.IsDir() {
+			dirs = append(dirs, info)
+		}
 	}
 	if *ArgsFlags.HumanReadable {
 		fmt.Printf("total %s\n", GetReadableSize(totalSize))
@@ -508,4 +540,13 @@ func PrintLongListing(ArgsFlags *Flags, filesInfo []fs.FileInfo) {
 		fmt.Printf("total %v\n", totalSize)
 	}
 	PrintTable(outTable)
+
+	if *ArgsFlags.Recursive && len(dirs) > 0 {
+		for _, dir := range dirs {
+			fmt.Println()
+			newDir := callingDir + "/" + dir.Name()
+			recursiveFiles := GetFilesInfo(newDir)
+			PrintLongListing(ArgsFlags, recursiveFiles, newDir, true)
+		}
+	}
 }
