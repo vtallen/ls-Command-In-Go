@@ -477,6 +477,8 @@ func GetReadableSize(size int64) string {
 		return fmt.Sprintf("%.1f", float64(size)/1024.0) + fmt.Sprint("K")
 	} else if size >= 1048576 && size < 1073741824 { // Size is measureable in megabytes
 		return fmt.Sprintf("%.1f", float64(size)/1048576.0) + fmt.Sprint("M")
+	} else if size >= 1073741824 && size < 1073741824 { // Size is measureable in gigabytes
+		return fmt.Sprintf("%.1f", float64(size)/1073741824.0) + fmt.Sprint("G")
 	} else { // Size is measureable in terabytes
 		return fmt.Sprintf("%.1f", float64(size)/1073741824.0) + fmt.Sprint("T")
 	}
