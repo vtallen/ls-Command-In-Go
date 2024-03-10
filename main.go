@@ -44,6 +44,7 @@ func main() {
 	// DebugArgs(ArgsFlags)
 	// fmt.Println()
 
+	// Get the files in the calling directory
 	filesInfo := GetFilesInfo(ArgsFlags.Path)
 	if *ArgsFlags.LongListing {
 		PrintLongListing(ArgsFlags, filesInfo, ArgsFlags.Path, false)
@@ -68,6 +69,17 @@ func PrintUsage() {
 	flag.PrintDefaults()
 }
 
+/*********************************************************************************************
+*                                                                                            *
+* Name: ParseArgs                                                                            *
+*                                                                                            *
+* Description: Parses all command arguments both in single flag form or in multi flag form   *
+*              -lahr                                                                         *
+*                                                                                            *
+* Parameters: none                                                                           *
+*                                                                                            *
+* return: struct *Flags                                                                      *
+**********************************************************************************************/
 func ParseArgs() *Flags {
 	var ArgsFlags Flags
 	// Define flags
@@ -81,17 +93,16 @@ func ParseArgs() *Flags {
 
 	// Define flags related to filtering
 	ArgsFlags.ShowHidden = flag.Bool("a", false, "Show hidden files")
-	ArgsFlags.ShowINodes = flag.Bool("i", false, "Print the index number of each file")
+	ArgsFlags.ShowINodes = flag.Bool("i", false, "Print the inode number of each file")
 
 	argv := os.Args[1:]
 	argc := len(os.Args[1:])
 
-	var err error
+	var err error // Gets reused by both methods of error parsing
 
 	// Case when vls
 	if argc == 0 {
 		ArgsFlags.Path, err = os.Getwd()
-
 	} else if argc == 1 {
 		/*
 		   Case when:
@@ -112,7 +123,6 @@ func ParseArgs() *Flags {
 		}
 
 	} else if argc == 2 { // Catches the case when command is in form vls -lah <path>
-		// TODO: Need to catch the case where the flag is a single flag
 		ParseMultiFlags()
 		ArgsFlags.Path = argv[argc-1]
 	} else { // Catches the case in which more than 1 flag is given seperately
@@ -127,6 +137,7 @@ func ParseArgs() *Flags {
 		ArgsFlags.Path = leftover[0]
 	}
 
+	// Catch errors
 	if err != nil {
 		fmt.Printf("Error parsing args:%s\n", err)
 		PrintUsage()
@@ -134,9 +145,18 @@ func ParseArgs() *Flags {
 	}
 
 	return &ArgsFlags
-
 }
 
+/*********************************************************************************************
+*                                                                                            *
+* Name: DebugArgs                                                                            *
+*                                                                                            *
+* Description: Prints the the boolean values of each argument that has been parsed           *
+*                                                                                            *
+* Parameters: ArgsFlags : *Flags                                                             *
+*                                                                                            *
+* return: none                                                                               *
+**********************************************************************************************/
 func DebugArgs(ArgsFlags *Flags) {
 	fmt.Println("Path:", ArgsFlags.Path)
 	fmt.Println()
@@ -163,6 +183,16 @@ func DebugArgs(ArgsFlags *Flags) {
 
 }
 
+/*********************************************************************************************
+*                                                                                            *
+* Name: ParseMultiFlags                                                                      *
+*                                                                                            *
+* Description: Parses command line arguments when in the form -lahr and sets the flag module *
+*                                                                                            *
+* Parameters: none                                                                           *
+*                                                                                            *
+* return: none                                                                               *
+**********************************************************************************************/
 func ParseMultiFlags() {
 	for i := 1; i < len(os.Args); i++ {
 		arg := os.Args[i]
@@ -181,6 +211,17 @@ func ParseMultiFlags() {
 	}
 }
 
+/*********************************************************************************************
+*                                                                                            *
+* Name: GetFilesInfo                                                                         *
+*                                                                                            *
+* Description: Takes in a string path and returns a slice containing all files in dir        *
+*              contained within that path                                                    *
+*                                                                                            *
+* Parameters: path : string - The path to list files and dirs for                            *
+*                                                                                            *
+* return: []os.FilesInfo                                                                     *
+**********************************************************************************************/
 func GetFilesInfo(path string) []os.FileInfo {
 	files, err := os.ReadDir(path)
 	if err != nil {
@@ -201,6 +242,17 @@ func GetFilesInfo(path string) []os.FileInfo {
 	return filesInfo
 }
 
+/*********************************************************************************************
+*                                                                                            *
+* Name: GetColorFilename                                                                     *
+*                                                                                            *
+* Description: Takes in a fs.FileInfo and returns the filename with terminal color codes     *
+*              in front based on what type of file it is                                     *
+*                                                                                            *
+* Parameters: fileinfo : fs.FileInfo - The file to return a colored name for                 *
+*                                                                                            *
+* return: string                                                                             *
+**********************************************************************************************/
 func GetColorFilename(fileinfo fs.FileInfo) string {
 	var color string
 	if fileinfo.IsDir() {
@@ -216,6 +268,17 @@ func GetColorFilename(fileinfo fs.FileInfo) string {
 	return color + fileinfo.Name() + RESET
 }
 
+/*********************************************************************************************
+*                                                                                            *
+* Name: FilterHidden                                                                         *
+*                                                                                            *
+* Description:  Removes all hidden files from the passed in slice and returns a new slice    *
+*               without those files in it                                                    *
+*                                                                                            *
+* Parameters: filesInfo : []fs.FileInfo - The files to filter                                *
+*                                                                                            *
+* return: []fs.FileInfo - The filtered slice                                                 *
+**********************************************************************************************/
 func FilterHidden(filesInfo []fs.FileInfo) []fs.FileInfo {
 	noHidden := make([]fs.FileInfo, 0, 0)
 	for _, file := range filesInfo {
@@ -227,6 +290,18 @@ func FilterHidden(filesInfo []fs.FileInfo) []fs.FileInfo {
 	return noHidden
 }
 
+/*********************************************************************************************
+*                                                                                            *
+* Name: SortName                                                                             *
+*                                                                                            *
+* Description:  Sorts the given slice of filenames in alphabetical order                     *
+*               without those files in it                                                    *
+*                                                                                            *
+* Parameters:  ArgsFlags : *Flags        - Command line arguments for this instance          *
+*              filesInfo : []fs.FileInfo - The files to filter                               *
+*                                                                                            *
+* return: none                                                                               *
+**********************************************************************************************/
 func SortName(ArgsFlags *Flags, filesInfo []fs.FileInfo) {
 	sort.Slice(filesInfo, func(idxa, idxb int) bool {
 		if *ArgsFlags.Reverse {
@@ -237,6 +312,17 @@ func SortName(ArgsFlags *Flags, filesInfo []fs.FileInfo) {
 	})
 }
 
+/*********************************************************************************************
+*                                                                                            *
+* Name: SortSize                                                                             *
+*                                                                                            *
+* Description:  Sorts the given slice of filenames in order based on their filesize          *
+*                                                                                            *
+* Parameters:  ArgsFlags : *Flags        - Command line arguments for this instance          *
+*              filesInfo : []fs.FileInfo - The files to filter                               *
+*                                                                                            *
+* return: none                                                                               *
+**********************************************************************************************/
 func SortSize(ArgsFlags *Flags, filesInfo []fs.FileInfo) {
 	sort.Slice(filesInfo, func(idxa, idxb int) bool {
 		if *ArgsFlags.Reverse {
@@ -247,6 +333,17 @@ func SortSize(ArgsFlags *Flags, filesInfo []fs.FileInfo) {
 	})
 }
 
+/*********************************************************************************************
+*                                                                                            *
+* Name: SortTime                                                                             *
+*                                                                                            *
+* Description:  Sorts the given slice of filenames in order based on their last modified time*
+*                                                                                            *
+* Parameters:  ArgsFlags : *Flags        - Command line arguments for this instance          *
+*              filesInfo : []fs.FileInfo - The files to filter                               *
+*                                                                                            *
+* return: none                                                                               *
+**********************************************************************************************/
 func SortTime(ArgsFlags *Flags, filesInfo []fs.FileInfo) {
 	sort.Slice(filesInfo, func(idxa, idxb int) bool {
 
@@ -267,6 +364,17 @@ func SortTime(ArgsFlags *Flags, filesInfo []fs.FileInfo) {
 	})
 }
 
+/*********************************************************************************************
+*                                                                                            *
+* Name: GetINode                                                                             *
+*                                                                                            *
+* Description: Returns the inode (disk location) of a given fs.FileInfo using a syscall      *
+*                                                                                            *
+* Parameters:  fileInfo : *fs.FileInfo - The file to obtain an inode for                     *
+*                                                                                            *
+* return: uint64 - the inode                                                                 *
+*         error  - non-nil if the syscall fails
+**********************************************************************************************/
 func GetINode(fileInfo *fs.FileInfo) (uint64, error) {
 	if fileInfo == nil {
 		panic("Cannot pass nil into GetINode")
@@ -281,6 +389,17 @@ func GetINode(fileInfo *fs.FileInfo) (uint64, error) {
 	return stat.Ino, nil
 }
 
+/*********************************************************************************************
+*                                                                                            *
+* Name: GetFilePerms                                                                         *
+*                                                                                            *
+* Description: Returns a string in linux file permission form of the user, group, and others *
+*              permissions of a file                                                         *
+*                                                                                            *
+* Parameters:  fileInfo : *fs.FileInfo - The file to obtain an permissions for               *
+*                                                                                            *
+* return: string - the permissions string                                                    *
+**********************************************************************************************/
 func GetFilePerms(fileInfo *fs.FileInfo) string {
 	mode := (*fileInfo).Mode()
 
@@ -340,6 +459,17 @@ func GetFilePerms(fileInfo *fs.FileInfo) string {
 	return permissions
 }
 
+/*********************************************************************************************
+*                                                                                            *
+* Name: GetReadableSize                                                                      *
+*                                                                                            *
+* Description: Returns a string of the size of a file in the appropriate unit (K, M, G, T)   *
+*                                                                                            *
+* Parameters:  size : uint64 - The size in bytes of a file                                   *
+*                                                                                            *
+* return: string - the human readable filesize                                               *
+**********************************************************************************************/
+// TODO Forgot to add GB size, fix this
 func GetReadableSize(size int64) string {
 	if size < 1024 { // Size is measureable in bytes
 		return fmt.Sprint(size)
@@ -352,6 +482,18 @@ func GetReadableSize(size int64) string {
 	}
 }
 
+/*********************************************************************************************
+*                                                                                            *
+* Name: SortFilterOnFlags                                                                    *
+*                                                                                            *
+* Description: sorts and filters the passed in slice of files based on the command line args *
+*                                                                                            *
+* Parameters:  ArgsFlags : *Flags - The command line areguments for the program              *
+*              filesInfo : *[]fs.FileInfo - The slice of files to filter                     *
+*                                                                                            *
+* return: []fs.FileInfo - the filtered slice. The passed back slice is only different if     *
+*                         hidden files have been filtered out                                *
+**********************************************************************************************/
 func SortFilterOnFlags(ArgsFlags *Flags, filesInfo *[]fs.FileInfo) []fs.FileInfo {
 	// Determine how to sort the entries based on the arguments
 	if *ArgsFlags.Reverse && !*ArgsFlags.SortSize && !*ArgsFlags.SortTime {
@@ -373,6 +515,21 @@ func SortFilterOnFlags(ArgsFlags *Flags, filesInfo *[]fs.FileInfo) []fs.FileInfo
 	return *filesInfo
 }
 
+/*********************************************************************************************
+*                                                                                            *
+* Name: PrintNormalListing                                                                   *
+*                                                                                            *
+* Description: Prints a list of dirs and file names to the terminal                          *
+*                                                                                            *
+* Parameters:  ArgsFlags : *Flags - The command line areguments for the program              *
+*              filesInfo : []fs.FileInfo - The slice of files to print                       *
+*              callingDir: string        - The directory the program was called from. Used to*
+*                                          provide the correct path when recusively printing *
+*              isRecursiveCall : bool    - Tells the funciton if a path should printed before*
+*                                          normal output                                     *
+*                                                                                            *
+* return: none                                                                               *
+**********************************************************************************************/
 func PrintNormalListing(ArgsFlags *Flags, filesInfo []fs.FileInfo, callingDir string, isRecursiveCall bool) {
 	// Uses the argument flags to sort and filter the output
 	filesInfo = SortFilterOnFlags(ArgsFlags, &filesInfo)
@@ -449,6 +606,22 @@ func PrintTable(table [][]string) {
 	}
 }
 
+/*********************************************************************************************
+*                                                                                            *
+* Name: PrintLongListing                                                                     *
+*                                                                                            *
+* Description: Prints a list of dirs and file names to the terminal in list format with perms*
+*              filesize, owner, group, number of links, and modified date/time               *
+*                                                                                            *
+* Parameters:  ArgsFlags : *Flags - The command line areguments for the program              *
+*              filesInfo : []fs.FileInfo - The slice of files to print                       *
+*              callingDir: string        - The directory the program was called from. Used to*
+*                                          provide the correct path when recusively printing *
+*              isRecursiveCall : bool    - Tells the funciton if a path should printed before*
+*                                          normal output                                     *
+*                                                                                            *
+* return: none                                                                               *
+**********************************************************************************************/
 func PrintLongListing(ArgsFlags *Flags, filesInfo []fs.FileInfo, callingDir string, isRecursiveCall bool) {
 	filesInfo = SortFilterOnFlags(ArgsFlags, &filesInfo)
 
